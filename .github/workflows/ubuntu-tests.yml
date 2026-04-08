@@ -49,6 +49,13 @@ jobs:
         pip install pytest
         pip install .
 
+
+    - name: Run Project2Tests
+      env:
+        AIDER_ANALYTICS: false
+      run: |
+        pytest Project2Tests
+
     - name: Run tests
       env:
         AIDER_ANALYTICS: false
