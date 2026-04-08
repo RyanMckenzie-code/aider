@@ -8,8 +8,6 @@ on:
       - 'HISTORY.md'
       - '.github/workflows/*'
       - '!.github/workflows/ubuntu-tests.yml'
-    branches:
-      - main
   pull_request:
     paths-ignore:
       - 'aider/website/**'
@@ -17,8 +15,6 @@ on:
       - 'HISTORY.md'
       - '.github/workflows/*'
       - '!.github/workflows/ubuntu-tests.yml'
-    branches:
-      - main
 
 jobs:
   build:
