@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aider.models import Model, _normalize_model_name
@@ -99,9 +101,5 @@ def test_send_completion_reraises_unrelated_bad_request():
 
     with patch("aider.models.litellm", new=fake_litellm):
         messages = [{"role": "user", "content": "hello"}]
-        try:
+        with pytest.raises(DummyBadRequestError, match="Some other bad request"):
             model.send_completion(messages=messages, functions=None, stream=False)
-        except DummyBadRequestError as exc:
-            assert "Some other bad request" in str(exc)
-        else:
-            raise AssertionError("Expected DummyBadRequestError to be raised")
