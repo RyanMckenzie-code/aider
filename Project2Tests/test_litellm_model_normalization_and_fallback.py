@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -34,16 +35,16 @@ def test_keep_non_local_model_name_unchanged():
     assert _normalize_model_name("gpt-4o") == "gpt-4o"
 
 
-def test_send_completion_fallback_on_missing_provider_error(monkeypatch):
+def test_send_completion_fallback_on_missing_provider_error():
     fallback_response = object()
     model = Model("local/qwen3-coder:30b")
     fake_litellm = FakeLiteLLM(
         [DummyBadRequestError("LLM Provider NOT provided"), fallback_response]
     )
-    monkeypatch.setattr("aider.models.litellm", fake_litellm)
-    messages = [{"role": "user", "content": "hello"}]
 
-    _, response = model.send_completion(messages=messages, functions=None, stream=False)
+    with patch("aider.models.litellm", new=fake_litellm):
+        messages = [{"role": "user", "content": "hello"}]
+        _, response = model.send_completion(messages=messages, functions=None, stream=False)
 
     assert response is fallback_response
     assert len(fake_litellm.calls) == 2
@@ -57,16 +58,16 @@ def test_send_completion_fallback_on_missing_provider_error(monkeypatch):
     assert second_call["messages"] == messages
 
 
-def test_send_completion_fallback_switches_to_known_ollama_model(monkeypatch):
+def test_send_completion_fallback_switches_to_known_ollama_model():
     fallback_response = object()
     model = Model("gpt-4o")
     fake_litellm = FakeLiteLLM(
         [DummyBadRequestError("LLM Provider NOT provided"), fallback_response]
     )
-    monkeypatch.setattr("aider.models.litellm", fake_litellm)
-    messages = [{"role": "user", "content": "hello"}]
 
-    _, response = model.send_completion(messages=messages, functions=None, stream=False)
+    with patch("aider.models.litellm", new=fake_litellm):
+        messages = [{"role": "user", "content": "hello"}]
+        _, response = model.send_completion(messages=messages, functions=None, stream=False)
 
     assert response is fallback_response
     assert len(fake_litellm.calls) == 2
@@ -74,15 +75,15 @@ def test_send_completion_fallback_switches_to_known_ollama_model(monkeypatch):
     assert fake_litellm.calls[1]["model"] == "ollama_chat/qwen3-coder:30b"
 
 
-def test_send_completion_reraises_unrelated_bad_request(monkeypatch):
+def test_send_completion_reraises_unrelated_bad_request():
     model = Model("gpt-4o")
     fake_litellm = FakeLiteLLM([DummyBadRequestError("Some other bad request")])
-    monkeypatch.setattr("aider.models.litellm", fake_litellm)
-    messages = [{"role": "user", "content": "hello"}]
 
-    try:
-        model.send_completion(messages=messages, functions=None, stream=False)
-    except DummyBadRequestError as exc:
-        assert "Some other bad request" in str(exc)
-    else:
-        raise AssertionError("Expected DummyBadRequestError to be raised")
+    with patch("aider.models.litellm", new=fake_litellm):
+        messages = [{"role": "user", "content": "hello"}]
+        try:
+            model.send_completion(messages=messages, functions=None, stream=False)
+        except DummyBadRequestError as exc:
+            assert "Some other bad request" in str(exc)
+        else:
+            raise AssertionError("Expected DummyBadRequestError to be raised")
