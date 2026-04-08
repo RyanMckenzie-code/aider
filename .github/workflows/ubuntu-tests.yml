@@ -2,6 +2,8 @@ name: Ubuntu Python Tests
 
 on:
   push:
+    branches:
+      - main
     paths-ignore:
       - 'aider/website/**'
       - 'README.md'
@@ -9,6 +11,8 @@ on:
       - '.github/workflows/*'
       - '!.github/workflows/ubuntu-tests.yml'
   pull_request:
+    branches:
+      - main
     paths-ignore:
       - 'aider/website/**'
       - 'README.md'
