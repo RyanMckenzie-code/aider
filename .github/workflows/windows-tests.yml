@@ -8,8 +8,6 @@ on:
       - 'HISTORY.md'
       - '.github/workflows/*'
       - '!.github/workflows/windows-tests.yml'
-    branches:
-      - main
   pull_request:
     paths-ignore:
       - 'aider/website/**'
@@ -17,8 +15,6 @@ on:
       - 'HISTORY.md'
       - '.github/workflows/*'
       - '!.github/workflows/windows-tests.yml'
-    branches:
-      - main
 
 jobs:
   build:
@@ -43,6 +39,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest
         pip install .
+
+
+    - name: Run Project2Tests
+      env:
+        AIDER_ANALYTICS: false
+      run: |
+        pytest Project2Tests
 
     - name: Run tests
       env:
