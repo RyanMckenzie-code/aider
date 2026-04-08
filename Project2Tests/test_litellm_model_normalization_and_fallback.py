@@ -17,7 +17,6 @@ class FakeLiteLLM:
     BadRequestError = DummyBadRequestError
 
     def __init__(self, side_effects):
-        self._lazy_module = None
         self._side_effects = list(side_effects)
         self.calls = []
 
@@ -29,16 +28,18 @@ class FakeLiteLLM:
         return result
 
 
-def build_model_without_litellm(name):
-    with (
-        patch.object(
-            Model,
-            "validate_environment",
-            return_value={"keys_in_environment": True, "missing_keys": []},
-        ),
-        patch.object(Model, "get_model_info", return_value={}),
-    ):
-        return Model(name)
+def build_minimal_model(name):
+    """Create a Model instance without running __init__ or importing litellm deps."""
+    model = Model.__new__(Model)
+    model.name = name
+    model.use_temperature = True
+    model.extra_params = None
+    model.verbose = False
+    model.is_deepseek_r1 = lambda: False
+    model.is_ollama = lambda: name.startswith("ollama/")
+    model.token_count = lambda messages: 0
+    model.github_copilot_token_to_open_ai_key = lambda _headers: None
+    return model
 
 
 def test_normalize_local_model_prefix_for_litellm_completion():
@@ -53,7 +54,7 @@ def test_keep_non_local_model_name_unchanged():
 
 def test_send_completion_fallback_on_missing_provider_error():
     fallback_response = object()
-    model = build_model_without_litellm("local/qwen3-coder:30b")
+    model = build_minimal_model("local/qwen3-coder:30b")
     fake_litellm = FakeLiteLLM(
         [DummyBadRequestError("LLM Provider NOT provided"), fallback_response]
     )
@@ -78,7 +79,7 @@ def test_send_completion_fallback_on_missing_provider_error():
 
 def test_send_completion_fallback_switches_to_known_ollama_model():
     fallback_response = object()
-    model = build_model_without_litellm("gpt-4o")
+    model = build_minimal_model("gpt-4o")
     fake_litellm = FakeLiteLLM(
         [DummyBadRequestError("LLM Provider NOT provided"), fallback_response]
     )
@@ -96,7 +97,7 @@ def test_send_completion_fallback_switches_to_known_ollama_model():
 
 
 def test_send_completion_reraises_unrelated_bad_request():
-    model = build_model_without_litellm("gpt-4o")
+    model = build_minimal_model("gpt-4o")
     fake_litellm = FakeLiteLLM([DummyBadRequestError("Some other bad request")])
 
     with patch("aider.models.litellm", new=fake_litellm):
