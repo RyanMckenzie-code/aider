@@ -483,9 +483,23 @@ class GitRepo:
         except ANY_GIT_ERROR as err:
             self.io.tool_error(f"Unable to read staged files: {err}")
 
-        res = [fname for fname in files if not self.ignored_file(fname)]
+        tracked = [f for f in files if not self.ignored_file(f)]
+        untracked = [self.normalize_path(p) for p in self.repo.untracked_files
+                     if not self.ignored_file(self.normalize_path(p))]
+        res = list(dict.fromkeys(untracked + tracked))
 
-        return res
+        # Add untracked files (NOT ignored)
+        print("🔥 get_tracked_files CALLED")
+        try:
+            for path in self.repo.untracked_files:
+                norm = self.normalize_path(path)
+                if not self.ignored_file(norm):
+                    res.append(norm)
+        except ANY_GIT_ERROR:
+            pass
+
+        # Deduplicate while preserving order
+        return list(dict.fromkeys(res))
 
     def normalize_path(self, path):
         orig_path = path
@@ -565,14 +579,19 @@ class GitRepo:
         return self.aider_ignore_spec.match_file(fname)
 
     def path_in_repo(self, path):
-        if not self.repo:
-            return
-        if not path:
-            return
+        if not self.repo or not path:
+            return False
 
-        tracked_files = set(self.get_tracked_files())
         normalized = self.normalize_path(path)
-        return normalized in tracked_files
+
+        tracked = set(self.repo.git.ls_files().splitlines())
+
+        try:
+            untracked = set(self.repo.untracked_files)
+        except ANY_GIT_ERROR:
+            untracked = set()
+
+        return normalized in tracked or normalized in untracked
 
     def abs_root_path(self, path):
         res = Path(self.root) / path
