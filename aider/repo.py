@@ -484,22 +484,18 @@ class GitRepo:
             self.io.tool_error(f"Unable to read staged files: {err}")
 
         tracked = [f for f in files if not self.ignored_file(f)]
-        untracked = [self.normalize_path(p) for p in self.repo.untracked_files
-                     if not self.ignored_file(self.normalize_path(p))]
-        res = list(dict.fromkeys(untracked + tracked))
 
-        # Add untracked files (NOT ignored)
-        print("🔥 get_tracked_files CALLED")
         try:
-            for path in self.repo.untracked_files:
-                norm = self.normalize_path(path)
-                if not self.ignored_file(norm):
-                    res.append(norm)
+            untracked = [
+                self.normalize_path(path)
+                for path in self.repo.untracked_files
+                if not self.ignored_file(self.normalize_path(path))
+            ]
         except ANY_GIT_ERROR:
-            pass
+            untracked = []
 
-        # Deduplicate while preserving order
-        return list(dict.fromkeys(res))
+        # Include untracked files first so they appear in autocomplete
+        return list(dict.fromkeys(untracked + tracked))
 
     def normalize_path(self, path):
         orig_path = path
