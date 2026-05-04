@@ -916,10 +916,52 @@ class Coder:
         if self.commands.is_command(inp):
             return self.commands.run(inp)
 
+        if not self.handle_read_only_edit_request(inp):
+            return
+
         self.check_for_file_mentions(inp)
         inp = self.check_for_urls(inp)
 
         return inp
+
+    def get_read_only_targets_in_text(self, inp):
+        inp_lc = inp.lower()
+        targets = []
+        for abs_fname in self.abs_read_only_fnames:
+            rel_fname = self.get_rel_fname(abs_fname)
+            rel_lc = rel_fname.lower()
+            base_lc = os.path.basename(rel_fname).lower()
+            if rel_lc in inp_lc or base_lc in inp_lc:
+                targets.append((abs_fname, rel_fname))
+        return targets
+
+    def handle_read_only_edit_request(self, inp):
+        lowered = inp.lower()
+        edit_words = ("edit", "change", "modify", "update", "rewrite", "refactor", "fix")
+        if not any(word in lowered for word in edit_words):
+            return True
+
+        targets = self.get_read_only_targets_in_text(inp)
+        if not targets:
+            return True
+
+        for abs_fname, rel_fname in targets:
+            self.io.tool_error(
+                f"{rel_fname} is read-only because it was added with /read. It cannot be edited unless you make it editable."
+            )
+            prompt = (
+                f"{rel_fname} is currently read-only because it was added with /read.\n"
+                "Do you want to make it editable and allow this edit?"
+            )
+            if not self.io.confirm_ask(prompt, default="n", subject=rel_fname):
+                self.io.tool_output(f"Skipping request because {rel_fname} is read-only.")
+                return False
+
+            if abs_fname in self.abs_read_only_fnames:
+                self.abs_read_only_fnames.remove(abs_fname)
+            self.abs_fnames.add(abs_fname)
+
+        return True
 
     def run_one(self, user_message, preproc):
         self.init_before_message()

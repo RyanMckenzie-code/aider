@@ -118,6 +118,52 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         self.assertIn("currently read-only because it was added with /read", prompt_text)
         self.assertNotIn("Allow edits to file that has not been added to the chat?", prompt_text)
 
+    def test_user_request_targeting_read_only_is_blocked_without_permission(self):
+        ro_file = Path("readonly.py")
+        rw_file = Path("editable.py")
+        ro_file.write_text("def protected_message():\n    return 'keep'\n")
+        rw_file.write_text("def editable_message():\n    return 'editable'\n")
+
+        io = InputOutput(yes=False)
+        coder = WholeFileCoder(
+            main_model=self.gpt35,
+            io=io,
+            fnames=["editable.py"],
+            read_only_fnames=["readonly.py"],
+        )
+
+        msg = "Change readonly.py so protected_message() returns 'DO NOT EDIT ME'."
+        processed = coder.preproc_user_input(msg)
+
+        self.assertIsNone(processed)
+        self.assertEqual(ro_file.read_text(), "def protected_message():\n    return 'keep'\n")
+        self.assertEqual(rw_file.read_text(), "def editable_message():\n    return 'editable'\n")
+        self.assertIn(coder.abs_root_path("readonly.py"), coder.abs_read_only_fnames)
+        self.assertIn(coder.abs_root_path("editable.py"), coder.abs_fnames)
+
+    def test_user_can_promote_read_only_then_request_proceeds(self):
+        ro_file = Path("readonly.py")
+        rw_file = Path("editable.py")
+        ro_file.write_text("def protected_message():\n    return 'keep'\n")
+        rw_file.write_text("def editable_message():\n    return 'editable'\n")
+
+        io = InputOutput(yes=None)
+        io.confirm_ask = MagicMock(return_value=True)
+        coder = WholeFileCoder(
+            main_model=self.gpt35,
+            io=io,
+            fnames=["editable.py"],
+            read_only_fnames=["readonly.py"],
+        )
+
+        msg = "Change readonly.py so protected_message() returns 'DO NOT EDIT ME'."
+        processed = coder.preproc_user_input(msg)
+
+        self.assertEqual(processed, msg)
+        self.assertNotIn(coder.abs_root_path("readonly.py"), coder.abs_read_only_fnames)
+        self.assertIn(coder.abs_root_path("readonly.py"), coder.abs_fnames)
+        self.assertIn(coder.abs_root_path("editable.py"), coder.abs_fnames)
+
 
 if __name__ == "__main__":
     unittest.main()
