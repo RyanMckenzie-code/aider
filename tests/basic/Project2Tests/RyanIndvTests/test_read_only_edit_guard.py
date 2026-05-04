@@ -106,3 +106,36 @@ class TestWholeFileReadOnlyGuard:
 
             assert ro.read_text() == "def protected_message():\n    return \"DO NOT EDIT ME\"\n"
             io.tool_warning.assert_called_with("Skipping edits to read-only file readonly.py.")
+
+    def test_wholefile_get_edits_excludes_read_only_files(self):
+        with GitTemporaryDirectory():
+            repo = git.Repo()
+
+            ro = Path("readonly.py")
+            ro.write_text("def protected_message():\n    return \"DO NOT EDIT ME\"\n")
+            editable = Path("editable.py")
+            editable.write_text("def message():\n    return \"editable original\"\n")
+            repo.git.add(str(ro))
+            repo.git.add(str(editable))
+            repo.git.commit("-m", "init")
+
+            io = MagicMock()
+            io.tool_warning = MagicMock()
+
+            coder = WholeFileCoder.create(
+                self.GPT35,
+                None,
+                io,
+                fnames=["editable.py"],
+                read_only_fnames=["readonly.py"],
+            )
+
+            coder.partial_response_content = (
+                "readonly.py\n```python\ndef protected_message():\n    return \"edited despite readonly\"\n```\n\n"
+                "editable.py\n```python\ndef message():\n    return \"edited editable\"\n```\n"
+            )
+
+            edits = coder.get_edits(mode="update")
+
+            assert len(edits) == 1
+            assert edits[0][0] == "editable.py"
