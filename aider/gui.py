@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+import json
 import os
 import random
 import sys
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from aider import urls
 from aider.coders import Coder
@@ -12,6 +14,12 @@ from aider.dump import dump  # noqa: F401
 from aider.io import InputOutput
 from aider.main import main as cli_main
 from aider.scrape import Scraper, has_playwright
+
+CHAT_HISTORY_STORAGE_KEY = "aider.browser.chatHistory.v1"
+
+
+def _json_script(value):
+    return json.dumps(value).replace("</", "<\/")
 
 
 class CaptureIO(InputOutput):
@@ -247,11 +255,59 @@ class GUI:
         with st.popover("Show token usage"):
             st.write("hi")
 
+    def _sync_browser_history(self):
+        payload = _json_script(self.state.messages)
+        key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+        components.html(
+            f"""
+            <script>
+            const key = {key};
+            const payload = {payload};
+            window.localStorage.setItem(key, payload);
+            </script>
+            """,
+            height=0,
+        )
+
+    def _restore_browser_history(self):
+        if self.state.messages_loaded_from_browser:
+            return
+
+        key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+        components.html(
+            f"""
+            <script>
+            const key = {key};
+            const value = window.localStorage.getItem(key) || "";
+            const txt = window.parent.document.querySelector('textarea[data-testid="stTextArea"]');
+            if (txt) {{
+                txt.value = value;
+                txt.dispatchEvent(new Event('input', {{bubbles: true}}));
+                txt.dispatchEvent(new Event('change', {{bubbles: true}}));
+            }}
+            </script>
+            """,
+            height=0,
+        )
+
+        raw = st.text_area("", key="chat_history_restore", label_visibility="collapsed")
+        if raw and not self.state.messages_loaded_from_browser:
+            try:
+                restored = json.loads(raw)
+            except (TypeError, json.JSONDecodeError):
+                restored = []
+            if isinstance(restored, list) and restored:
+                self.state.messages = restored
+            self.state.messages_loaded_from_browser = True
+
     def do_clear_chat_history(self):
         text = "Saves tokens, reduces confusion"
         if self.button("Clear chat history", help=text):
             self.coder.done_messages = []
             self.coder.cur_messages = []
+            self.state.messages = []
+            window_key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+            components.html(f"<script>window.localStorage.removeItem({window_key});</script>", height=0)
             self.info("Cleared chat history. Now the LLM can't see anything before this line.")
 
     def do_show_metrics(self):
@@ -338,6 +394,7 @@ class GUI:
         self.state.init("web_content_num", 0)
         self.state.init("prompt")
         self.state.init("scraper")
+        self.state.init("messages_loaded_from_browser", False)
 
         self.state.init("initial_inchat_files", self.coder.get_inchat_relative_files())
 
@@ -367,6 +424,7 @@ class GUI:
         self.coder.pretty = False
 
         self.initialize_state()
+        self._restore_browser_history()
 
         self.do_messages_container()
         self.do_sidebar()
@@ -377,6 +435,8 @@ class GUI:
 
         if self.prompt_pending():
             self.process_chat()
+
+        self._sync_browser_history()
 
         if not self.prompt:
             return
@@ -398,6 +458,8 @@ class GUI:
             line += "??"
             with self.messages.expander(line):
                 st.text(self.prompt)
+
+        self._sync_browser_history()
 
         # re-render the UI for the prompt_pending state
         st.rerun()
@@ -449,6 +511,8 @@ class GUI:
 
             self.state.messages.append(edit)
             self.show_edit_info(edit)
+
+        self._sync_browser_history()
 
         # re-render the UI for the non-prompt_pending state
         st.rerun()
