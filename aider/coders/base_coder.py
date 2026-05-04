@@ -957,9 +957,9 @@ class Coder:
                 self.io.tool_output(f"Skipping request because {rel_fname} is read-only.")
                 return False
 
-            if abs_fname in self.abs_read_only_fnames:
-                self.abs_read_only_fnames.remove(abs_fname)
+            self.remove_read_only_path(abs_fname)
             self.abs_fnames.add(abs_fname)
+            self.io.tool_output(f"{rel_fname} is now editable.")
 
         return True
 
@@ -2247,8 +2247,9 @@ class Coder:
                 self.io.tool_output(f"Skipping edits to {rel_path}")
                 return
 
-            self.abs_read_only_fnames.remove(full_path)
+            self.remove_read_only_path(full_path)
             self.abs_fnames.add(full_path)
+            self.io.tool_output(f"{rel_path} is now editable.")
             self.check_added_files()
             self.check_for_dirty_commit(path)
             return True
@@ -2308,6 +2309,11 @@ class Coder:
 
         for ro_fname in self.abs_read_only_fnames:
             try:
+                if os.path.samefile(ro_fname, full_path):
+                    return True
+            except (FileNotFoundError, OSError):
+                pass
+            try:
                 ro_resolved = Path(ro_fname).resolve()
             except (RuntimeError, OSError):
                 ro_resolved = Path(ro_fname).absolute()
@@ -2315,6 +2321,19 @@ class Coder:
                 return True
 
         return False
+
+    def remove_read_only_path(self, full_path):
+        if full_path in self.abs_read_only_fnames:
+            self.abs_read_only_fnames.remove(full_path)
+            return
+
+        for ro_fname in list(self.abs_read_only_fnames):
+            try:
+                if os.path.samefile(ro_fname, full_path):
+                    self.abs_read_only_fnames.remove(ro_fname)
+                    return
+            except (FileNotFoundError, OSError):
+                continue
 
     warning_given = False
 

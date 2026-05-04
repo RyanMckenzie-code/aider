@@ -164,6 +164,30 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         self.assertIn(coder.abs_root_path("readonly.py"), coder.abs_fnames)
         self.assertIn(coder.abs_root_path("editable.py"), coder.abs_fnames)
 
+    def test_exact_repro_read_only_file_uses_read_only_prompt_not_generic(self):
+        ro_file = Path("readonly.py")
+        rw_file = Path("editable.py")
+        ro_file.write_text("def protected_message():\n    return 'ORIGINAL'\n")
+        rw_file.write_text("def editable_message():\n    return 'editable'\n")
+
+        io = InputOutput(yes=None)
+        coder = WholeFileCoder(
+            main_model=self.gpt35,
+            io=io,
+            fnames=["editable.py"],
+            read_only_fnames=["readonly.py"],
+        )
+
+        coder.partial_response_content = "readonly.py\n```\ndef protected_message():\n    return 'edited despite readonly'\n```"
+        with patch("builtins.input", return_value=""):
+            edited_files = coder.apply_updates()
+
+        self.assertEqual(edited_files, set())
+        self.assertEqual(ro_file.read_text(), "def protected_message():\n    return 'ORIGINAL'\n")
+        self.assertEqual(rw_file.read_text(), "def editable_message():\n    return 'editable'\n")
+        self.assertIn(coder.abs_root_path("readonly.py"), coder.abs_read_only_fnames)
+        self.assertNotIn(coder.abs_root_path("readonly.py"), coder.abs_fnames)
+
 
 if __name__ == "__main__":
     unittest.main()
