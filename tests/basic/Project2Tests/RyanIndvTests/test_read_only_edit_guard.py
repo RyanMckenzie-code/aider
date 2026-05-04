@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import git
 
 from aider.coders import Coder
+from aider.coders.wholefile_coder import WholeFileCoder
 from aider.models import Model
 from aider.utils import GitTemporaryDirectory
 
@@ -81,3 +82,27 @@ class TestReadOnlyEditGuard:
             assert prepared == []
             io.confirm_ask.assert_not_called()
             io.tool_warning.assert_called_with("Skipping edits to read-only file path/to/readonly.py.")
+
+
+class TestWholeFileReadOnlyGuard:
+    GPT35 = Model("gpt-3.5-turbo")
+
+    def test_apply_edits_skips_read_only_file(self):
+        with GitTemporaryDirectory():
+            repo = git.Repo()
+
+            ro = Path("readonly.py")
+            ro.write_text("def protected_message():\n    return \"DO NOT EDIT ME\"\n")
+            repo.git.add(str(ro))
+            repo.git.commit("-m", "init")
+
+            io = MagicMock()
+            io.tool_warning = MagicMock()
+
+            coder = WholeFileCoder.create(self.GPT35, None, io, read_only_fnames=["readonly.py"])
+            edits = [("readonly.py", "block", ["def protected_message():\n", "    return \"edited despite readonly\"\n"])]
+
+            coder.apply_edits(edits)
+
+            assert ro.read_text() == "def protected_message():\n    return \"DO NOT EDIT ME\"\n"
+            io.tool_warning.assert_called_with("Skipping edits to read-only file readonly.py.")

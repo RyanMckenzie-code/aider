@@ -123,6 +123,10 @@ class WholeFileCoder(Coder):
 
     def apply_edits(self, edits):
         for path, fname_source, new_lines in edits:
+            if self.is_read_only_path(path):
+                self.io.tool_warning(f"Skipping edits to read-only file {path}.")
+                continue
+
             full_path = self.abs_root_path(path)
             new_lines = "".join(new_lines)
             self.io.write_text(full_path, new_lines)
