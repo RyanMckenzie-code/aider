@@ -184,6 +184,51 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         self.assertIn(coder.abs_root_path("readonly.py"), coder.abs_read_only_fnames)
         self.assertNotIn(coder.abs_root_path("readonly.py"), coder.abs_fnames)
 
+    def test_blocked_read_only_edit_explains_why_output_is_blocked(self):
+        ro_file = Path("readonly.py")
+        ro_file.write_text("def protected_message():\n    return 'ORIGINAL'\n")
+
+        io = InputOutput(yes=None)
+        io.tool_error = MagicMock()
+        coder = WholeFileCoder(
+            main_model=self.gpt35,
+            io=io,
+            fnames=[],
+            read_only_fnames=["readonly.py"],
+        )
+
+        coder.partial_response_content = "readonly.py\n```\ndef protected_message():\n    return 'blocked'\n```"
+        edited_files = coder.apply_updates()
+
+        self.assertEqual(edited_files, set())
+        self.assertTrue(io.tool_error.called)
+        self.assertIn("That is why this edit output is blocked.", io.tool_error.call_args_list[0][0][0])
+
+    def test_typo_target_that_matches_read_only_does_not_show_generic_prompt(self):
+        ro_file = Path("readonly.py")
+        ro_file.write_text("def protected_message():\n    return 'ORIGINAL'\n")
+        Path("editable.py").write_text("def editable_message():\n    return 'editable'\n")
+
+        io = InputOutput(yes=None)
+        io.confirm_ask = MagicMock(return_value=False)
+        coder = WholeFileCoder(
+            main_model=self.gpt35,
+            io=io,
+            fnames=["editable.py"],
+            read_only_fnames=["readonly.py"],
+        )
+
+        Path("readonyl.py").write_text("typo file\n")
+        edited = coder.allowed_to_edit("readonyl.py")
+
+        self.assertIsNone(edited)
+        self.assertEqual(io.confirm_ask.call_count, 1)
+        prompt_text = io.confirm_ask.call_args[0][0]
+        self.assertIn("looks like readonly.py, which is read-only", prompt_text)
+        self.assertNotEqual(
+            prompt_text, "Allow edits to file that has not been added to the chat?"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
