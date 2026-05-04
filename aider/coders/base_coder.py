@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import traceback
+from difflib import SequenceMatcher
 from collections import defaultdict
 from datetime import datetime
 
@@ -916,10 +917,52 @@ class Coder:
         if self.commands.is_command(inp):
             return self.commands.run(inp)
 
+        if not self.handle_read_only_edit_request(inp):
+            return
+
         self.check_for_file_mentions(inp)
         inp = self.check_for_urls(inp)
 
         return inp
+
+    def get_read_only_targets_in_text(self, inp):
+        inp_lc = inp.lower()
+        targets = []
+        for abs_fname in self.abs_read_only_fnames:
+            rel_fname = self.get_rel_fname(abs_fname)
+            rel_lc = rel_fname.lower()
+            base_lc = os.path.basename(rel_fname).lower()
+            if rel_lc in inp_lc or base_lc in inp_lc:
+                targets.append((abs_fname, rel_fname))
+        return targets
+
+    def handle_read_only_edit_request(self, inp):
+        lowered = inp.lower()
+        edit_words = ("edit", "change", "modify", "update", "rewrite", "refactor", "fix")
+        if not any(word in lowered for word in edit_words):
+            return True
+
+        targets = self.get_read_only_targets_in_text(inp)
+        if not targets:
+            return True
+
+        for abs_fname, rel_fname in targets:
+            self.io.tool_error(
+                f"{rel_fname} is read-only because it was added with /read. It cannot be edited unless you make it editable."
+            )
+            prompt = (
+                f"{rel_fname} is currently read-only because it was added with /read.\n"
+                "Do you want to make it editable and allow this edit?"
+            )
+            if not self.io.confirm_ask(prompt, default="n", subject=rel_fname):
+                self.io.tool_output(f"Skipping request because {rel_fname} is read-only.")
+                return False
+
+            self.remove_read_only_path(abs_fname)
+            self.abs_fnames.add(abs_fname)
+            self.io.tool_output(f"{rel_fname} is now editable.")
+
+        return True
 
     def run_one(self, user_message, preproc):
         self.init_before_message()
@@ -2195,6 +2238,15 @@ class Coder:
         else:
             need_to_add = False
 
+        if self.is_read_only_path(full_path):
+            rel_path = self.get_rel_fname(full_path)
+            self.io.tool_error(
+                f"{rel_path} is read-only because it was added with /read. "
+                "That is why this edit output is blocked."
+            )
+            self.io.tool_output(f"Skipping edits to {rel_path}")
+            return
+
         if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)
             return True
@@ -2223,10 +2275,8 @@ class Coder:
             self.check_added_files()
             return True
 
-        if not self.io.confirm_ask(
-            "Allow edits to file that has not been added to the chat?",
-            subject=path,
-        ):
+        non_chat_prompt = self.get_non_chat_edit_prompt(path, full_path)
+        if not self.io.confirm_ask(non_chat_prompt, subject=path):
             self.io.tool_output(f"Skipping edits to {path}")
             return
 
@@ -2238,6 +2288,63 @@ class Coder:
         self.check_for_dirty_commit(path)
 
         return True
+
+    def get_non_chat_edit_prompt(self, path, full_path):
+        similar_read_only = self.find_similar_read_only_path(full_path)
+        if similar_read_only:
+            rel_similar = self.get_rel_fname(similar_read_only)
+            self.io.tool_error(f"{rel_similar} that is a read only file")
+            return (
+                f"{path} looks like {rel_similar}, which is read-only. "
+                "Use /drop and /add if you want to edit it."
+            )
+        return "Allow edits to file that has not been added to the chat?"
+
+    def find_similar_read_only_path(self, full_path):
+        target_name = Path(full_path).name.lower()
+        for ro_fname in self.abs_read_only_fnames:
+            ro_name = Path(ro_fname).name.lower()
+            ratio = SequenceMatcher(None, target_name, ro_name).ratio()
+            if ratio >= 0.85:
+                return ro_fname
+        return None
+
+    def is_read_only_path(self, full_path):
+        if full_path in self.abs_read_only_fnames:
+            return True
+
+        try:
+            full_resolved = Path(full_path).resolve()
+        except (RuntimeError, OSError):
+            full_resolved = Path(full_path).absolute()
+
+        for ro_fname in self.abs_read_only_fnames:
+            try:
+                if os.path.samefile(ro_fname, full_path):
+                    return True
+            except (FileNotFoundError, OSError):
+                pass
+            try:
+                ro_resolved = Path(ro_fname).resolve()
+            except (RuntimeError, OSError):
+                ro_resolved = Path(ro_fname).absolute()
+            if ro_resolved == full_resolved:
+                return True
+
+        return False
+
+    def remove_read_only_path(self, full_path):
+        if full_path in self.abs_read_only_fnames:
+            self.abs_read_only_fnames.remove(full_path)
+            return
+
+        for ro_fname in list(self.abs_read_only_fnames):
+            try:
+                if os.path.samefile(ro_fname, full_path):
+                    self.abs_read_only_fnames.remove(ro_fname)
+                    return
+            except (FileNotFoundError, OSError):
+                continue
 
     warning_given = False
 
