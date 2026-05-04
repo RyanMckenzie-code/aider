@@ -48,3 +48,36 @@ class TestReadOnlyEditGuard:
             assert not coder.allowed_to_edit("path/to/readonly.py")
             io.tool_warning.assert_called_with("Skipping edits to read-only file path/to/readonly.py.")
             io.confirm_ask.assert_not_called()
+
+    def test_prepare_to_edit_drops_read_only_alias_edit(self):
+        with GitTemporaryDirectory():
+            repo = git.Repo()
+
+            ro = Path("readonly.py")
+            ro.write_text("def protected_message():\n    return \"DO NOT EDIT ME\"\n")
+            repo.git.add(str(ro))
+
+            editable = Path("editable.py")
+            editable.write_text("def ok():\n    return 1\n")
+            repo.git.add(str(editable))
+
+            repo.git.commit("-m", "init")
+
+            io = MagicMock()
+            io.confirm_ask = MagicMock(return_value=True)
+            io.tool_warning = MagicMock()
+
+            coder = Coder.create(
+                self.GPT35,
+                None,
+                io,
+                fnames=["editable.py"],
+                read_only_fnames=["readonly.py"],
+            )
+
+            edits = [("path/to/readonly.py", "block", ["def protected_message():\n", "    return \"edited despite readonly\"\n"]) ]
+            prepared = coder.prepare_to_edit(edits)
+
+            assert prepared == []
+            io.confirm_ask.assert_not_called()
+            io.tool_warning.assert_called_with("Skipping edits to read-only file path/to/readonly.py.")
