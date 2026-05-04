@@ -274,12 +274,14 @@ class GUI:
             return
 
         key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+        restore_label = "chat_history_restore_json"
         components.html(
             f"""
             <script>
             const key = {key};
             const value = window.localStorage.getItem(key) || "";
-            const txt = window.parent.document.querySelector('textarea[data-testid="stTextArea"]');
+            const textareas = window.parent.document.querySelectorAll('textarea[data-testid="stTextArea"]');
+            const txt = Array.from(textareas).find((el) => el.getAttribute("aria-label") === "{restore_label}");
             if (txt) {{
                 txt.value = value;
                 txt.dispatchEvent(new Event('input', {{bubbles: true}}));
@@ -290,7 +292,7 @@ class GUI:
             height=0,
         )
 
-        raw = st.text_area("", key="chat_history_restore", label_visibility="collapsed")
+        raw = st.text_area(restore_label, key="chat_history_restore", label_visibility="collapsed")
         if raw and not self.state.messages_loaded_from_browser:
             try:
                 restored = json.loads(raw)
