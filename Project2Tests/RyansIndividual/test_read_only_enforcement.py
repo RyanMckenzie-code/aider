@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from aider.coders.wholefile_coder import WholeFileCoder
+from aider.commands import Commands
 from aider.io import InputOutput
 from aider.models import Model
 
@@ -228,6 +229,26 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         self.assertNotEqual(
             prompt_text, "Allow edits to file that has not been added to the chat?"
         )
+
+    def test_runtime_read_matches_startup_read_registration_state(self):
+        Path("editable.py").write_text("editable\n")
+        Path("readonly.py").write_text("readonly\n")
+
+        io_a = InputOutput(yes=False)
+        startup_coder = WholeFileCoder(
+            main_model=self.gpt35,
+            io=io_a,
+            fnames=["editable.py"],
+            read_only_fnames=["readonly.py"],
+        )
+
+        io_b = InputOutput(yes=False)
+        runtime_coder = WholeFileCoder(main_model=self.gpt35, io=io_b, fnames=["editable.py"])
+        commands = Commands(io_b, runtime_coder)
+        commands.cmd_read_only("readonly.py")
+
+        self.assertEqual(startup_coder.abs_read_only_fnames, runtime_coder.abs_read_only_fnames)
+        self.assertEqual(startup_coder.abs_fnames, runtime_coder.abs_fnames)
 
 
 if __name__ == "__main__":

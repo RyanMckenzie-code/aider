@@ -1387,13 +1387,12 @@ class Commands:
             self.io.tool_error(f"{original_name} is already in the chat as a read-only file")
             return
         elif abs_path in self.coder.abs_fnames:
-            self.coder.abs_fnames.remove(abs_path)
-            self.coder.abs_read_only_fnames.add(abs_path)
+            self.coder.register_read_only_file(abs_path)
             self.io.tool_output(
                 f"Moved {original_name} from editable to read-only files in the chat"
             )
         else:
-            self.coder.abs_read_only_fnames.add(abs_path)
+            self.coder.register_read_only_file(abs_path)
             self.io.tool_output(f"Added {original_name} to read-only files.")
 
     def _add_read_only_directory(self, abs_path, original_name):
@@ -1405,7 +1404,7 @@ class Commands:
                     file_path not in self.coder.abs_fnames
                     and file_path not in self.coder.abs_read_only_fnames
                 ):
-                    self.coder.abs_read_only_fnames.add(file_path)
+                    self.coder.register_read_only_file(file_path)
                     added_files += 1
 
         if added_files > 0:

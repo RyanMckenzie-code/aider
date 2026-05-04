@@ -479,10 +479,8 @@ class Coder:
         if read_only_fnames:
             self.abs_read_only_fnames = set()
             for fname in read_only_fnames:
-                abs_fname = self.abs_root_path(fname)
-                if os.path.exists(abs_fname):
-                    self.abs_read_only_fnames.add(abs_fname)
-                else:
+                abs_fname = self.register_read_only_file(fname)
+                if not abs_fname:
                     self.io.tool_warning(f"Error: Read-only file {fname} does not exist. Skipping.")
 
         if map_tokens is None:
@@ -557,6 +555,17 @@ class Coder:
     def add_rel_fname(self, rel_fname):
         self.abs_fnames.add(self.abs_root_path(rel_fname))
         self.check_added_files()
+
+    def register_read_only_file(self, fname):
+        abs_fname = self.abs_root_path(fname)
+        if not os.path.exists(abs_fname):
+            return None
+
+        if abs_fname in self.abs_fnames:
+            self.abs_fnames.remove(abs_fname)
+
+        self.abs_read_only_fnames.add(abs_fname)
+        return abs_fname
 
     def drop_rel_fname(self, fname):
         abs_fname = self.abs_root_path(fname)
