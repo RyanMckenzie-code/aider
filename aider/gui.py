@@ -325,22 +325,25 @@ class GUI:
             self.state.messages_loaded_from_browser = True
 
     def do_saved_chats(self):
-        st.markdown("### Chat history")
-        if self.button("Save current chat", help="Save this conversation snapshot"):
-            self.state.saved_chats.append(
-                {
-                    "name": f"Chat {len(self.state.saved_chats) + 1}",
-                    "messages": list(self.state.messages),
-                }
-            )
-            self._sync_browser_history()
+        if not isinstance(self.state.saved_chats, list):
+            self.state.saved_chats = []
 
-        options = ["Current chat"] + [chat.get("name", "Saved chat") for chat in self.state.saved_chats]
-        selected = st.selectbox("View chat", options, key="saved_chat_selector")
-        if selected != "Current chat":
-            idx = options.index(selected) - 1
-            chat = self.state.saved_chats[idx]
-            with st.expander("Saved chat transcript", expanded=True):
+        with st.expander("Chat history", expanded=True):
+            if self.button("Save current chat", help="Save this conversation snapshot"):
+                self.state.saved_chats.append(
+                    {
+                        "name": f"Chat {len(self.state.saved_chats) + 1}",
+                        "messages": list(self.state.messages),
+                    }
+                )
+                self._sync_browser_history()
+
+            options = ["Current chat"] + [chat.get("name", "Saved chat") for chat in self.state.saved_chats]
+            selected = st.selectbox("View chat", options, key="saved_chat_selector")
+            if selected != "Current chat":
+                idx = options.index(selected) - 1
+                chat = self.state.saved_chats[idx]
+                st.caption("Viewing saved transcript")
                 for msg in chat.get("messages", []):
                     role = msg.get("role", "info")
                     content = msg.get("content", "")
