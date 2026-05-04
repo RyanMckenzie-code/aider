@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import traceback
+from difflib import SequenceMatcher
 from collections import defaultdict
 from datetime import datetime
 
@@ -2271,10 +2272,8 @@ class Coder:
             self.check_added_files()
             return True
 
-        if not self.io.confirm_ask(
-            "Allow edits to file that has not been added to the chat?",
-            subject=path,
-        ):
+        non_chat_prompt = self.get_non_chat_edit_prompt(path, full_path)
+        if not self.io.confirm_ask(non_chat_prompt, subject=path):
             self.io.tool_output(f"Skipping edits to {path}")
             return
 
@@ -2286,6 +2285,26 @@ class Coder:
         self.check_for_dirty_commit(path)
 
         return True
+
+    def get_non_chat_edit_prompt(self, path, full_path):
+        similar_read_only = self.find_similar_read_only_path(full_path)
+        if similar_read_only:
+            rel_similar = self.get_rel_fname(similar_read_only)
+            self.io.tool_error(f"{rel_similar} that is a read only file")
+            return (
+                f"{path} looks like {rel_similar}, which is read-only. "
+                "Use /drop and /add if you want to edit it."
+            )
+        return "Allow edits to file that has not been added to the chat?"
+
+    def find_similar_read_only_path(self, full_path):
+        target_name = Path(full_path).name.lower()
+        for ro_fname in self.abs_read_only_fnames:
+            ro_name = Path(ro_fname).name.lower()
+            ratio = SequenceMatcher(None, target_name, ro_name).ratio()
+            if ratio >= 0.85:
+                return ro_fname
+        return None
 
     def is_read_only_path(self, full_path):
         if full_path in self.abs_read_only_fnames:
