@@ -2195,11 +2195,7 @@ class Coder:
         else:
             need_to_add = False
 
-        if full_path in self.abs_fnames:
-            self.check_for_dirty_commit(path)
-            return True
-
-        if full_path in self.abs_read_only_fnames:
+        if self.is_read_only_path(full_path):
             rel_path = self.get_rel_fname(full_path)
             prompt = (
                 f"{rel_path} is currently read-only because it was added with /read.\n"
@@ -2212,6 +2208,10 @@ class Coder:
             self.abs_read_only_fnames.remove(full_path)
             self.abs_fnames.add(full_path)
             self.check_added_files()
+            self.check_for_dirty_commit(path)
+            return True
+
+        if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)
             return True
 
@@ -2254,6 +2254,25 @@ class Coder:
         self.check_for_dirty_commit(path)
 
         return True
+
+    def is_read_only_path(self, full_path):
+        if full_path in self.abs_read_only_fnames:
+            return True
+
+        try:
+            full_resolved = Path(full_path).resolve()
+        except (RuntimeError, OSError):
+            full_resolved = Path(full_path).absolute()
+
+        for ro_fname in self.abs_read_only_fnames:
+            try:
+                ro_resolved = Path(ro_fname).resolve()
+            except (RuntimeError, OSError):
+                ro_resolved = Path(ro_fname).absolute()
+            if ro_resolved == full_resolved:
+                return True
+
+        return False
 
     warning_given = False
 

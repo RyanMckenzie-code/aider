@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -99,6 +99,24 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         self.assertEqual(ro_file.read_text(), "read only\n")
         self.assertEqual(rw_file.read_text(), "editable\n")
         self.assertIn("ro.txt was added with /read and cannot be edited.", coder.reflected_message)
+
+    def test_read_only_edit_never_uses_generic_not_in_chat_prompt(self):
+        ro_file = Path("ro.txt")
+        ro_file.write_text("read only\n")
+
+        io = InputOutput(yes=None)
+        io.confirm_ask = MagicMock(return_value=False)
+        coder = WholeFileCoder(main_model=self.gpt35, io=io, fnames=[], read_only_fnames=["ro.txt"])
+
+        coder.partial_response_content = "ro.txt\n```\nnew content\n```"
+        edited_files = coder.apply_updates()
+
+        self.assertEqual(edited_files, set())
+        self.assertEqual(ro_file.read_text(), "read only\n")
+        self.assertEqual(io.confirm_ask.call_count, 1)
+        prompt_text = io.confirm_ask.call_args[0][0]
+        self.assertIn("currently read-only because it was added with /read", prompt_text)
+        self.assertNotIn("Allow edits to file that has not been added to the chat?", prompt_text)
 
 
 if __name__ == "__main__":
