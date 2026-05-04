@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -23,11 +24,11 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         os.chdir(self.original_cwd)
         shutil.rmtree(self.tempdir, ignore_errors=True)
 
-    def test_read_only_file_cannot_be_edited(self):
+    def test_read_only_file_cannot_be_edited_when_user_answers_no(self):
         ro_file = Path("ro.txt")
         ro_file.write_text("read only\n")
 
-        io = InputOutput(yes=True)
+        io = InputOutput(yes=False)
         coder = WholeFileCoder(main_model=self.gpt35, io=io, fnames=[], read_only_fnames=["ro.txt"])
 
         coder.partial_response_content = "ro.txt\n```\nnew content\n```"
@@ -35,52 +36,40 @@ class TestReadOnlyEnforcement(unittest.TestCase):
 
         self.assertEqual(edited_files, set())
         self.assertEqual(ro_file.read_text(), "read only\n")
+        self.assertIn(coder.abs_root_path("ro.txt"), coder.abs_read_only_fnames)
+        self.assertNotIn(coder.abs_root_path("ro.txt"), coder.abs_fnames)
 
     def test_read_only_file_still_available_as_context(self):
         ro_file = Path("ro.txt")
         ro_file.write_text("shared context\n")
 
-        io = InputOutput(yes=True)
+        io = InputOutput(yes=False)
         coder = WholeFileCoder(main_model=self.gpt35, io=io, fnames=[], read_only_fnames=["ro.txt"])
 
         read_only_context = coder.get_read_only_files_content()
         self.assertIn("ro.txt", read_only_context)
         self.assertIn("shared context", read_only_context)
 
-    def test_mixed_edit_batch_with_read_only_file_is_rejected(self):
+    def test_read_only_file_becomes_editable_when_user_answers_yes(self):
         ro_file = Path("ro.txt")
-        rw_file = Path("rw.txt")
         ro_file.write_text("read only\n")
-        rw_file.write_text("editable\n")
+        io = InputOutput(yes=None)
+        coder = WholeFileCoder(main_model=self.gpt35, io=io, fnames=[], read_only_fnames=["ro.txt"])
 
-        io = InputOutput(yes=True)
-        coder = WholeFileCoder(
-            main_model=self.gpt35,
-            io=io,
-            fnames=["rw.txt"],
-            read_only_fnames=["ro.txt"],
-        )
+        coder.partial_response_content = "ro.txt\n```\nnew content\n```"
+        with patch("builtins.input", return_value="y"):
+            edited_files = coder.apply_updates()
 
-        coder.partial_response_content = """ro.txt
-```
-new ro
-```
-rw.txt
-```
-new rw
-```
-"""
-        edited_files = coder.apply_updates()
-
-        self.assertEqual(edited_files, set())
-        self.assertEqual(ro_file.read_text(), "read only\n")
-        self.assertEqual(rw_file.read_text(), "editable\n")
+        self.assertEqual(edited_files, {"ro.txt"})
+        self.assertEqual(ro_file.read_text(), "new content\n")
+        self.assertNotIn(coder.abs_root_path("ro.txt"), coder.abs_read_only_fnames)
+        self.assertIn(coder.abs_root_path("ro.txt"), coder.abs_fnames)
 
     def test_read_only_path_normalization_blocks_dot_slash_bypass(self):
         ro_file = Path("ro.txt")
         ro_file.write_text("read only\n")
 
-        io = InputOutput(yes=True)
+        io = InputOutput(yes=False)
         coder = WholeFileCoder(main_model=self.gpt35, io=io, fnames=[], read_only_fnames=["./ro.txt"])
 
         coder.partial_response_content = "ro.txt\n```\nnew content\n```"
@@ -95,7 +84,7 @@ new rw
         ro_file.write_text("read only\n")
         rw_file.write_text("editable\n")
 
-        io = InputOutput(yes=True)
+        io = InputOutput(yes=False)
         coder = WholeFileCoder(
             main_model=self.gpt35,
             io=io,

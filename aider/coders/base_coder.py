@@ -2199,6 +2199,22 @@ class Coder:
             self.check_for_dirty_commit(path)
             return True
 
+        if full_path in self.abs_read_only_fnames:
+            rel_path = self.get_rel_fname(full_path)
+            prompt = (
+                f"{rel_path} is currently read-only because it was added with /read.\n"
+                f"Do you want to make {rel_path} editable and allow this edit?"
+            )
+            if not self.io.confirm_ask(prompt, default="n", subject=rel_path):
+                self.io.tool_output(f"Skipping edits to {rel_path}")
+                return
+
+            self.abs_read_only_fnames.remove(full_path)
+            self.abs_fnames.add(full_path)
+            self.check_added_files()
+            self.check_for_dirty_commit(path)
+            return True
+
         if self.repo and self.repo.git_ignored_file(path):
             self.io.tool_warning(f"Skipping edits to {path} that matches gitignore spec.")
             return
@@ -2293,38 +2309,11 @@ class Coder:
 
         return res
 
-    def check_for_read_only_edits(self, edits):
-        read_only_paths = set(self.abs_read_only_fnames or [])
-        if not read_only_paths:
-            return True
-
-        blocked_paths = set()
-        for edit in edits:
-            path = edit[0]
-            if not path:
-                continue
-            full_path = self.abs_root_path(path)
-            if full_path in read_only_paths:
-                blocked_paths.add(full_path)
-
-        if not blocked_paths:
-            return True
-
-        for blocked_path in sorted(blocked_paths):
-            self.io.tool_error(
-                f"Cannot edit {self.get_rel_fname(blocked_path)}: file was added with /read and cannot be edited."
-            )
-
-        self.io.tool_error("Rejected this edit batch because it includes read-only files.")
-        return False
-
     def apply_updates(self):
         edited = set()
         try:
             edits = self.get_edits()
             edits = self.apply_edits_dry_run(edits)
-            if not self.check_for_read_only_edits(edits):
-                return edited
             edits = self.prepare_to_edit(edits)
             edited = set(edit[0] for edit in edits)
 
