@@ -2240,7 +2240,10 @@ class Coder:
 
         if self.is_read_only_path(full_path):
             rel_path = self.get_rel_fname(full_path)
-            self.io.tool_error(f"{rel_path} that is a read only file")
+            self.io.tool_error(
+                f"{rel_path} is read-only because it was added with /read. "
+                "That is why this edit output is blocked."
+            )
             self.io.tool_output(f"Skipping edits to {rel_path}")
             return
 
