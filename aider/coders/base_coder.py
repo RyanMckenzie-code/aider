@@ -2239,20 +2239,9 @@ class Coder:
 
         if self.is_read_only_path(full_path):
             rel_path = self.get_rel_fname(full_path)
-            prompt = (
-                f"{rel_path} is currently read-only because it was added with /read.\n"
-                f"Do you want to make {rel_path} editable and allow this edit?"
-            )
-            if not self.io.confirm_ask(prompt, default="n", subject=rel_path):
-                self.io.tool_output(f"Skipping edits to {rel_path}")
-                return
-
-            self.remove_read_only_path(full_path)
-            self.abs_fnames.add(full_path)
-            self.io.tool_output(f"{rel_path} is now editable.")
-            self.check_added_files()
-            self.check_for_dirty_commit(path)
-            return True
+            self.io.tool_error(f"{rel_path} that is a read only file")
+            self.io.tool_output(f"Skipping edits to {rel_path}")
+            return
 
         if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)

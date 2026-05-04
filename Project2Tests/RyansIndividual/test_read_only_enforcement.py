@@ -50,20 +50,19 @@ class TestReadOnlyEnforcement(unittest.TestCase):
         self.assertIn("ro.txt", read_only_context)
         self.assertIn("shared context", read_only_context)
 
-    def test_read_only_file_becomes_editable_when_user_answers_yes(self):
+    def test_read_only_file_stays_blocked_during_apply_updates(self):
         ro_file = Path("ro.txt")
         ro_file.write_text("read only\n")
         io = InputOutput(yes=None)
         coder = WholeFileCoder(main_model=self.gpt35, io=io, fnames=[], read_only_fnames=["ro.txt"])
 
         coder.partial_response_content = "ro.txt\n```\nnew content\n```"
-        with patch("builtins.input", return_value="y"):
-            edited_files = coder.apply_updates()
+        edited_files = coder.apply_updates()
 
-        self.assertEqual(edited_files, {"ro.txt"})
-        self.assertEqual(ro_file.read_text(), "new content\n")
-        self.assertNotIn(coder.abs_root_path("ro.txt"), coder.abs_read_only_fnames)
-        self.assertIn(coder.abs_root_path("ro.txt"), coder.abs_fnames)
+        self.assertEqual(edited_files, set())
+        self.assertEqual(ro_file.read_text(), "read only\n")
+        self.assertIn(coder.abs_root_path("ro.txt"), coder.abs_read_only_fnames)
+        self.assertNotIn(coder.abs_root_path("ro.txt"), coder.abs_fnames)
 
     def test_read_only_path_normalization_blocks_dot_slash_bypass(self):
         ro_file = Path("ro.txt")
@@ -113,10 +112,7 @@ class TestReadOnlyEnforcement(unittest.TestCase):
 
         self.assertEqual(edited_files, set())
         self.assertEqual(ro_file.read_text(), "read only\n")
-        self.assertEqual(io.confirm_ask.call_count, 1)
-        prompt_text = io.confirm_ask.call_args[0][0]
-        self.assertIn("currently read-only because it was added with /read", prompt_text)
-        self.assertNotIn("Allow edits to file that has not been added to the chat?", prompt_text)
+        self.assertEqual(io.confirm_ask.call_count, 0)
 
     def test_user_request_targeting_read_only_is_blocked_without_permission(self):
         ro_file = Path("readonly.py")
