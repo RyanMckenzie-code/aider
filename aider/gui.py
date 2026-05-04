@@ -168,6 +168,7 @@ class GUI:
             # self.do_recommended_actions()
             self.do_add_to_chat()
             self.do_recent_msgs()
+            st.caption("Browser chat history is enabled")
             self.do_saved_chats()
             self.do_clear_chat_history()
             # st.container(height=150, border=False)
