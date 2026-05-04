@@ -2195,6 +2195,10 @@ class Coder:
         else:
             need_to_add = False
 
+        if full_path in self.abs_read_only_fnames:
+            self.io.tool_warning(f"Skipping edits to read-only file {path}.")
+            return
+
         if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)
             return True
