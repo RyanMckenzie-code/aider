@@ -2256,6 +2256,16 @@ class Coder:
             self.io.tool_output(f"Skipping edits to {rel_path}")
             return
 
+        similar_read_only = self.find_similar_read_only_path(full_path)
+        if similar_read_only:
+            rel_similar = self.get_rel_fname(similar_read_only)
+            self.io.tool_error(
+                f"{path} looks like {rel_similar}, which is read-only. "
+                "That is why this edit output is blocked."
+            )
+            self.io.tool_output(f"Skipping edits to {path}")
+            return
+
         if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)
             return True
@@ -2299,20 +2309,14 @@ class Coder:
         return True
 
     def get_non_chat_edit_prompt(self, path, full_path):
-        similar_read_only = self.find_similar_read_only_path(full_path)
-        if similar_read_only:
-            rel_similar = self.get_rel_fname(similar_read_only)
-            self.io.tool_error(f"{rel_similar} that is a read only file")
-            return (
-                f"{path} looks like {rel_similar}, which is read-only. "
-                "Use /drop and /add if you want to edit it."
-            )
         return "Allow edits to file that has not been added to the chat?"
 
     def find_similar_read_only_path(self, full_path):
         target_name = Path(full_path).name.lower()
         for ro_fname in self.abs_read_only_fnames:
             ro_name = Path(ro_fname).name.lower()
+            if ro_name == target_name:
+                return ro_fname
             ratio = SequenceMatcher(None, target_name, ro_name).ratio()
             if ratio >= 0.85:
                 return ro_fname
