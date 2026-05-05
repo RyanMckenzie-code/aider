@@ -16,6 +16,7 @@ from aider.main import main as cli_main
 from aider.scrape import Scraper, has_playwright
 
 CHAT_HISTORY_STORAGE_KEY = "aider.browser.chatHistory.v1"
+CHAT_HISTORY_UI_VERSION = "chat-history-v1"
 
 
 def _json_script(value):
@@ -163,6 +164,7 @@ class GUI:
     def do_sidebar(self):
         with st.sidebar:
             st.title("Aider")
+            st.caption(f"Browser UI: {CHAT_HISTORY_UI_VERSION}")
             # self.cmds_tab, self.settings_tab = st.tabs(["Commands", "Settings"])
 
             # self.do_recommended_actions()
