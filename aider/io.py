@@ -390,7 +390,7 @@ class InputOutput:
                 try:
                     # Try creating a style to validate the color
                     RichStyle(color=color_value)
-                except ColorParseError as e:
+                except (ColorParseError, ValueError, Exception) as e:
                     self.console.print(
                         "[bold red]Warning:[/bold red] Invalid configuration for"
                         f" {attr_name}: '{color_value}'. {e}. Disabling this color."
@@ -529,6 +529,8 @@ class InputOutput:
         abs_read_only_fnames=None,
         edit_format=None,
     ):
+        # ensure untracked files are included in /add autocomplete immediately
+        addable_rel_fnames = list(dict.fromkeys(addable_rel_fnames))
         self.rule()
 
         # Ring the bell if needed
