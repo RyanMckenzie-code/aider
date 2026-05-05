@@ -978,6 +978,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             fnames=fnames,
             read_only_fnames=read_only_fnames,
             show_diffs=args.show_diffs,
+            supervised_mode=args.supervised_mode,
             auto_commits=args.auto_commits,
             dirty_commits=args.dirty_commits,
             dry_run=args.dry_run,

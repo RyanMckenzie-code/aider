@@ -398,6 +398,14 @@ def get_parser(default_config_files, git_root):
         help="Show diffs when committing changes (default: False)",
         default=False,
     )
+    group.add_argument(
+        "--supervised-mode",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Require approval for each proposed edit before applying it (default: False)"
+        ),
+    )
 
     ##########
     group = parser.add_argument_group("Git settings")

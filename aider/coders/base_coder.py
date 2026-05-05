@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import base64
+import difflib
 import hashlib
 import json
 import locale
@@ -338,6 +339,7 @@ class Coder:
         file_watcher=None,
         auto_copy_context=False,
         auto_accept_architect=True,
+        supervised_mode=False,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -352,6 +354,7 @@ class Coder:
 
         self.auto_copy_context = auto_copy_context
         self.auto_accept_architect = auto_accept_architect
+        self.supervised_mode = supervised_mode
 
         self.ignore_mentions = ignore_mentions
         if not self.ignore_mentions:
@@ -2298,6 +2301,7 @@ class Coder:
         try:
             edits = self.get_edits()
             edits = self.apply_edits_dry_run(edits)
+            edits = self.filter_edits_for_supervised_mode(edits)
             edits = self.prepare_to_edit(edits)
             edited = set(edit[0] for edit in edits)
 
@@ -2334,6 +2338,38 @@ class Coder:
                 self.io.tool_output(f"Applied edit to {path}")
 
         return edited
+
+    def filter_edits_for_supervised_mode(self, edits):
+        if not self.supervised_mode:
+            return edits
+
+        approved = []
+        for edit in edits:
+            if not isinstance(edit, tuple) or len(edit) < 3 or not edit[0]:
+                if self.io.confirm_ask("Apply this proposed change?"):
+                    approved.append(edit)
+                continue
+
+            path, original, updated = edit[:3]
+            diff = difflib.unified_diff(
+                original.splitlines(keepends=True),
+                updated.splitlines(keepends=True),
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+                lineterm="",
+            )
+            show_diff = "".join(diff)
+            if not show_diff:
+                show_diff = "(No textual diff available for this change.)"
+            self.io.tool_output(f"Proposed change for {path}:")
+            self.io.tool_output(f"```diff\n{show_diff}\n```")
+
+            if self.io.confirm_ask("Apply this change?", subject=path):
+                approved.append(edit)
+            else:
+                self.io.tool_output(f"Skipped proposed change for {path}.")
+
+        return approved
 
     def parse_partial_args(self):
         # dump(self.partial_response_function_call)
