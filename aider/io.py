@@ -430,7 +430,12 @@ class InputOutput:
                 completion_menu_current_style
             )
 
-        return Style.from_dict(style_dict)
+        try:
+            return Style.from_dict(style_dict)
+        except ValueError:
+            # If prompt_toolkit hates the color Rich liked,
+            # we fall back to an empty style so the app doesn't die.
+            return Style.from_dict({})
 
     def read_image(self, filename):
         try:
