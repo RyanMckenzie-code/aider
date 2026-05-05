@@ -43,17 +43,6 @@ from .utils import is_image_file
 NOTIFICATION_MESSAGE = "Aider is waiting for your input"
 
 
-def ensure_hash_prefix(color):
-    """Ensure hex color values have a # prefix."""
-    if not color:
-        return color
-    if isinstance(color, str) and color.strip() and not color.startswith("#"):
-        # Check if it's a valid hex color (3 or 6 hex digits)
-        if all(c in "0123456789ABCDEFabcdef" for c in color) and len(color) in (3, 6):
-            return f"#{color}"
-    return color
-
-
 import re
 
 
@@ -73,6 +62,21 @@ def convert_rgb_to_hex(color):
         except (ValueError, TypeError):
             return color
     return color
+
+def ensure_hash_prefix(color):
+    """Ensure hex color values have a # prefix."""
+    if not color:
+        return color
+
+    # NEW: Try to convert RGB first
+    color = convert_rgb_to_hex(color)
+
+    if isinstance(color, str) and color.strip() and not color.startswith("#"):
+        # Check if it's a valid hex color (3 or 6 hex digits)
+        if all(c in "0123456789ABCDEFabcdef" for c in color) and len(color) in (3, 6):
+            return f"#{color}"
+    return color
+
 
 
 def restore_multiline(func):
