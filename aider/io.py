@@ -390,7 +390,7 @@ class InputOutput:
                 try:
                     # Try creating a style to validate the color
                     RichStyle(color=color_value)
-                except ColorParseError as e:
+                except (ColorParseError, ValueError, Exception) as e:
                     self.console.print(
                         "[bold red]Warning:[/bold red] Invalid configuration for"
                         f" {attr_name}: '{color_value}'. {e}. Disabling this color."
