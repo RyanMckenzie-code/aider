@@ -54,6 +54,27 @@ def ensure_hash_prefix(color):
     return color
 
 
+import re
+
+
+def convert_rgb_to_hex(color):
+    """Convert rgb(r,g,b) strings to #RRGGBB."""
+    if not isinstance(color, str) or "rgb" not in color.lower():
+        return color
+
+    # Matches rgb(255, 0, 0) or rgba(255, 0, 0, 1)
+    match = re.search(r'rgba?\((\d+),\s*(\d+),\s*(\d+)', color.lower())
+    if match:
+        try:
+            r, g, b = map(int, match.groups())
+            # Clamp values to 0-255 range just in case
+            r, g, b = max(0, min(r, 255)), max(0, min(g, 255)), max(0, min(b, 255))
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except (ValueError, TypeError):
+            return color
+    return color
+
+
 def restore_multiline(func):
     """Decorator to restore multiline mode after function execution"""
 
