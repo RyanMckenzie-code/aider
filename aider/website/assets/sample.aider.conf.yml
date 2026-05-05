@@ -340,6 +340,9 @@
 ## Enable automatic copy/paste of chat between aider and web UI (default: False)
 #copy-paste: false
 
+## Require approval for each proposed edit before applying it (default: False)
+#supervised-mode: false
+
 ## Apply the changes from the given file instead of running the chat (debug)
 #apply: xxx
 
