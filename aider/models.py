@@ -111,6 +111,12 @@ MODEL_ALIASES = {
 }
 # Model metadata loaded from resources and user's files.
 
+def _normalize_model_name(model: str) -> str:
+    if not model:
+        return model
+    if model.startswith("local/"):
+        return model.replace("local/", "ollama_chat/")
+    return model
 
 @dataclass
 class ModelSettings:
@@ -1018,7 +1024,19 @@ class Model(ModelSettings):
 
             self.github_copilot_token_to_open_ai_key(kwargs["extra_headers"])
 
-        res = litellm.completion(**kwargs)
+        model = kwargs.get("model")
+        kwargs["model"] = _normalize_model_name(model)
+
+        try:
+            res = litellm.completion(**kwargs)
+
+        except litellm.BadRequestError as e:
+            if "LLM Provider NOT provided" in str(e):
+                # fallback fix
+                kwargs["model"] = "ollama_chat/qwen3-coder:30b"
+                res = litellm.completion(**kwargs)
+            else:
+                raise
         return hash_object, res
 
     def simple_send_with_retries(self, messages):

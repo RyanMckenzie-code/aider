@@ -529,6 +529,8 @@ class InputOutput:
         abs_read_only_fnames=None,
         edit_format=None,
     ):
+        # ensure untracked files are included in /add autocomplete immediately
+        addable_rel_fnames = list(dict.fromkeys(addable_rel_fnames))
         self.rule()
 
         # Ring the bell if needed
