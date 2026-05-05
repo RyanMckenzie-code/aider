@@ -2315,6 +2315,8 @@ class Coder:
         target_name = Path(full_path).name.lower()
         for ro_fname in self.abs_read_only_fnames:
             ro_name = Path(ro_fname).name.lower()
+            if ro_name == target_name:
+                return ro_fname
             ratio = SequenceMatcher(None, target_name, ro_name).ratio()
             if ratio >= 0.85:
                 return ro_fname
