@@ -2188,12 +2188,45 @@ class Coder:
         self.io.tool_output(f"Committing {path} before applying edits.")
         self.need_commit_before_edits.add(path)
 
+    def is_read_only_path(self, path, full_path=None):
+        if full_path is None:
+            full_path = self.abs_root_path(path)
+
+        if full_path in self.abs_read_only_fnames:
+            return True
+
+        path_basename = os.path.basename(path)
+        norm_path = os.path.normcase(os.path.normpath(path))
+
+        for ro_fname in self.abs_read_only_fnames:
+            if full_path == ro_fname:
+                return True
+
+            if os.path.basename(ro_fname) == path_basename:
+                return True
+
+            rel_ro = self.get_rel_fname(ro_fname)
+            if os.path.normcase(os.path.normpath(rel_ro)) == norm_path:
+                return True
+
+            try:
+                if os.path.exists(full_path) and os.path.exists(ro_fname) and os.path.samefile(full_path, ro_fname):
+                    return True
+            except OSError:
+                pass
+
+        return False
+
     def allowed_to_edit(self, path):
         full_path = self.abs_root_path(path)
         if self.repo:
             need_to_add = not self.repo.path_in_repo(path)
         else:
             need_to_add = False
+
+        if self.is_read_only_path(path, full_path):
+            self.io.tool_warning(f"Skipping edits to read-only file {path}.")
+            return
 
         if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)

@@ -41,6 +41,12 @@ class WholeFileCoder(Coder):
 
                     full_path = self.abs_root_path(fname)
 
+                    if self.is_read_only_path(fname, full_path):
+                        fname = None
+                        fname_source = None
+                        new_lines = []
+                        continue
+
                     if mode == "diff":
                         output += self.do_live_diff(full_path, new_lines, True)
                     else:
@@ -102,7 +108,7 @@ class WholeFileCoder(Coder):
                 output += self.do_live_diff(full_path, new_lines, False)
             return "\n".join(output)
 
-        if fname:
+        if fname and not self.is_read_only_path(fname):
             edits.append((fname, fname_source, new_lines))
 
         seen = set()
@@ -123,6 +129,10 @@ class WholeFileCoder(Coder):
 
     def apply_edits(self, edits):
         for path, fname_source, new_lines in edits:
+            if self.is_read_only_path(path):
+                self.io.tool_warning(f"Skipping edits to read-only file {path}.")
+                continue
+
             full_path = self.abs_root_path(path)
             new_lines = "".join(new_lines)
             self.io.write_text(full_path, new_lines)
