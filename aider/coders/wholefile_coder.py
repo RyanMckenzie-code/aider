@@ -23,6 +23,7 @@ class WholeFileCoder(Coder):
         content = self.get_multi_response_content_in_progress()
 
         chat_files = self.get_inchat_relative_files()
+        read_only_files = set(self.get_rel_fname(fname) for fname in self.abs_read_only_fnames)
 
         output = []
         lines = content.splitlines(keepends=True)
@@ -30,6 +31,7 @@ class WholeFileCoder(Coder):
         edits = []
 
         saw_fname = None
+        saw_read_only_fname = None
         fname = None
         fname_source = None
         new_lines = []
@@ -60,6 +62,8 @@ class WholeFileCoder(Coder):
                     fname = fname.strip("`")
                     fname = fname.lstrip("#")
                     fname = fname.strip()
+                    if fname and any(ch.isspace() for ch in fname):
+                        fname = ""
 
                     # Issue #1232
                     if len(fname) > 250:
@@ -74,6 +78,10 @@ class WholeFileCoder(Coder):
                     if saw_fname:
                         fname = saw_fname
                         fname_source = "saw"
+                    elif saw_read_only_fname:
+                        raise ValueError(
+                            f"{saw_read_only_fname} was added with /read and cannot be edited."
+                        )
                     elif len(chat_files) == 1:
                         fname = chat_files[0]
                         fname_source = "chat"
@@ -92,6 +100,10 @@ class WholeFileCoder(Coder):
                         quoted_chat_file = f"`{chat_file}`"
                         if word == quoted_chat_file:
                             saw_fname = chat_file
+                    for read_only_file in read_only_files:
+                        quoted_read_only_file = f"`{read_only_file}`"
+                        if word == quoted_read_only_file:
+                            saw_read_only_fname = read_only_file
 
                 output.append(line)
 

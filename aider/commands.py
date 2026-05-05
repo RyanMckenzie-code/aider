@@ -1400,7 +1400,7 @@ class Commands:
         added_files = 0
         for root, _, files in os.walk(abs_path):
             for file in files:
-                file_path = os.path.join(root, file)
+                file_path = self.coder.abs_root_path(os.path.join(root, file))
                 if (
                     file_path not in self.coder.abs_fnames
                     and file_path not in self.coder.abs_read_only_fnames
