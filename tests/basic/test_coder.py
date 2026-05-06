@@ -101,6 +101,23 @@ class TestCoder(unittest.TestCase):
             self.assertTrue(coder.allowed_to_edit("added.txt"))
             self.assertTrue(coder.need_commit_before_edits)
 
+    def test_allowed_to_edit_read_only_deny_without_prompt(self):
+        with GitTemporaryDirectory():
+            repo = git.Repo()
+
+            fname = Path("readonly.py")
+            fname.write_text("print('hi')\n")
+            repo.git.add(str(fname))
+            repo.git.commit("-m", "init")
+
+            io = MagicMock()
+            io.confirm_ask = MagicMock(return_value=True)
+            coder = Coder.create(self.GPT35, None, io, read_only_fnames=["readonly.py"])
+
+            self.assertFalse(coder.allowed_to_edit("readonly.py"))
+            self.assertFalse(coder.allowed_to_edit("./readonly.py"))
+            io.confirm_ask.assert_not_called()
+
     def test_get_files_content(self):
         tempdir = Path(tempfile.mkdtemp())
 

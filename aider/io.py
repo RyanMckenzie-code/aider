@@ -156,7 +156,7 @@ class AutoCompleter(Completer):
 
         for fname in self.all_fnames:
             try:
-                with open(fname, "r", encoding=self.encoding) as f:
+                with open(fname, "r", encoding=self.encoding, errors="replace") as f:
                     content = f.read()
             except (FileNotFoundError, UnicodeDecodeError, IsADirectoryError):
                 continue
@@ -485,7 +485,7 @@ class InputOutput:
             return self.read_image(filename)
 
         try:
-            with open(str(filename), "r", encoding=self.encoding) as f:
+            with open(str(filename), "r", encoding=self.encoding, errors="replace") as f:
                 return f.read()
         except FileNotFoundError:
             if not silent:
