@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+import json
 import os
 import random
 import sys
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from aider import urls
 from aider.coders import Coder
@@ -13,6 +15,18 @@ from aider.io import InputOutput
 from aider.main import main as cli_main
 from aider.scrape import Scraper, has_playwright
 
+CHAT_HISTORY_STORAGE_KEY = "aider.browser.chatHistory.v1"
+
+
+def _json_script(value):
+    return json.dumps(value).replace("</", "<\/")
+
+
+def _default_browser_history_state(messages):
+    return {
+        "current": messages,
+        "saved_chats": [],
+    }
 
 class CaptureIO(InputOutput):
     lines = []
@@ -154,6 +168,8 @@ class GUI:
             # self.do_recommended_actions()
             self.do_add_to_chat()
             self.do_recent_msgs()
+            st.caption("Browser chat history is enabled")
+            self.do_saved_chats()
             self.do_clear_chat_history()
             # st.container(height=150, border=False)
             # st.write("### Experimental")
@@ -247,11 +263,101 @@ class GUI:
         with st.popover("Show token usage"):
             st.write("hi")
 
+    def _sync_browser_history(self):
+        payload = _json_script(
+            {
+                "current": self.state.messages,
+                "saved_chats": self.state.saved_chats,
+            }
+        )
+        key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+        components.html(
+            f"""
+            <script>
+            const key = {key};
+            const payload = {payload};
+            window.localStorage.setItem(key, payload);
+            </script>
+            """,
+            height=0,
+        )
+
+    def _restore_browser_history(self):
+        if self.state.messages_loaded_from_browser:
+            return
+
+        key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+        restore_label = "chat_history_restore_json"
+        components.html(
+            f"""
+            <script>
+            const key = {key};
+            const value = window.localStorage.getItem(key) || "";
+            const textareas = window.parent.document.querySelectorAll('textarea[data-testid="stTextArea"]');
+            const txt = Array.from(textareas).find((el) => el.getAttribute("aria-label") === "{restore_label}");
+            if (txt) {{
+                txt.value = value;
+                txt.dispatchEvent(new Event('input', {{bubbles: true}}));
+                txt.dispatchEvent(new Event('change', {{bubbles: true}}));
+            }}
+            </script>
+            """,
+            height=0,
+        )
+
+        raw = st.text_area(restore_label, key="chat_history_restore", label_visibility="collapsed")
+        if raw and not self.state.messages_loaded_from_browser:
+            parsed = _default_browser_history_state(self.state.messages)
+            try:
+                restored = json.loads(raw)
+                if isinstance(restored, list):
+                    parsed["current"] = restored
+                elif isinstance(restored, dict):
+                    parsed["current"] = restored.get("current") or parsed["current"]
+                    parsed["saved_chats"] = restored.get("saved_chats") or []
+            except (TypeError, json.JSONDecodeError):
+                pass
+
+            if isinstance(parsed["current"], list) and parsed["current"]:
+                self.state.messages = parsed["current"]
+            if isinstance(parsed["saved_chats"], list):
+                self.state.saved_chats = parsed["saved_chats"]
+
+            self.state.messages_loaded_from_browser = True
+
+    def do_saved_chats(self):
+        if not isinstance(self.state.saved_chats, list):
+            self.state.saved_chats = []
+
+        with st.expander("Chat history", expanded=True):
+            if self.button("Save current chat", help="Save this conversation snapshot"):
+                self.state.saved_chats.append(
+                    {
+                        "name": f"Chat {len(self.state.saved_chats) + 1}",
+                        "messages": list(self.state.messages),
+                    }
+                )
+                self._sync_browser_history()
+
+            options = ["Current chat"] + [chat.get("name", "Saved chat") for chat in self.state.saved_chats]
+            selected = st.selectbox("View chat", options, key="saved_chat_selector")
+            if selected != "Current chat":
+                idx = options.index(selected) - 1
+                chat = self.state.saved_chats[idx]
+                st.caption("Viewing saved transcript")
+                for msg in chat.get("messages", []):
+                    role = msg.get("role", "info")
+                    content = msg.get("content", "")
+                    st.write(f"**{role}:** {content}")
+
     def do_clear_chat_history(self):
         text = "Saves tokens, reduces confusion"
         if self.button("Clear chat history", help=text):
             self.coder.done_messages = []
             self.coder.cur_messages = []
+            self.state.messages = []
+            window_key = _json_script(CHAT_HISTORY_STORAGE_KEY)
+            components.html(f"<script>window.localStorage.removeItem({window_key});</script>", height=0)
             self.info("Cleared chat history. Now the LLM can't see anything before this line.")
 
     def do_show_metrics(self):
@@ -338,6 +444,8 @@ class GUI:
         self.state.init("web_content_num", 0)
         self.state.init("prompt")
         self.state.init("scraper")
+        self.state.init("messages_loaded_from_browser", False)
+        self.state.init("saved_chats", [])
 
         self.state.init("initial_inchat_files", self.coder.get_inchat_relative_files())
 
@@ -367,6 +475,7 @@ class GUI:
         self.coder.pretty = False
 
         self.initialize_state()
+        self._restore_browser_history()
 
         self.do_messages_container()
         self.do_sidebar()
@@ -377,6 +486,8 @@ class GUI:
 
         if self.prompt_pending():
             self.process_chat()
+
+        self._sync_browser_history()
 
         if not self.prompt:
             return
@@ -398,6 +509,8 @@ class GUI:
             line += "??"
             with self.messages.expander(line):
                 st.text(self.prompt)
+
+        self._sync_browser_history()
 
         # re-render the UI for the prompt_pending state
         st.rerun()
@@ -449,6 +562,8 @@ class GUI:
 
             self.state.messages.append(edit)
             self.show_edit_info(edit)
+
+        self._sync_browser_history()
 
         # re-render the UI for the non-prompt_pending state
         st.rerun()
