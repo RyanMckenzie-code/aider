@@ -43,15 +43,40 @@ from .utils import is_image_file
 NOTIFICATION_MESSAGE = "Aider is waiting for your input"
 
 
+import re
+
+
+def convert_rgb_to_hex(color):
+    """Convert rgb(r,g,b) strings to #RRGGBB."""
+    if not isinstance(color, str) or "rgb" not in color.lower():
+        return color
+
+    # Matches rgb(255, 0, 0) or rgba(255, 0, 0, 1)
+    match = re.search(r'rgba?\((\d+),\s*(\d+),\s*(\d+)', color.lower())
+    if match:
+        try:
+            r, g, b = map(int, match.groups())
+            # Clamp values to 0-255 range just in case
+            r, g, b = max(0, min(r, 255)), max(0, min(g, 255)), max(0, min(b, 255))
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except (ValueError, TypeError):
+            return color
+    return color
+
 def ensure_hash_prefix(color):
     """Ensure hex color values have a # prefix."""
     if not color:
         return color
+
+    # NEW: Try to convert RGB first
+    color = convert_rgb_to_hex(color)
+
     if isinstance(color, str) and color.strip() and not color.startswith("#"):
         # Check if it's a valid hex color (3 or 6 hex digits)
         if all(c in "0123456789ABCDEFabcdef" for c in color) and len(color) in (3, 6):
             return f"#{color}"
     return color
+
 
 
 def restore_multiline(func):
@@ -131,7 +156,7 @@ class AutoCompleter(Completer):
 
         for fname in self.all_fnames:
             try:
-                with open(fname, "r", encoding=self.encoding) as f:
+                with open(fname, "r", encoding=self.encoding, errors="replace") as f:
                     content = f.read()
             except (FileNotFoundError, UnicodeDecodeError, IsADirectoryError):
                 continue
@@ -390,7 +415,7 @@ class InputOutput:
                 try:
                     # Try creating a style to validate the color
                     RichStyle(color=color_value)
-                except ColorParseError as e:
+                except (ColorParseError, ValueError, Exception) as e:
                     self.console.print(
                         "[bold red]Warning:[/bold red] Invalid configuration for"
                         f" {attr_name}: '{color_value}'. {e}. Disabling this color."
@@ -430,7 +455,12 @@ class InputOutput:
                 completion_menu_current_style
             )
 
-        return Style.from_dict(style_dict)
+        try:
+            return Style.from_dict(style_dict)
+        except ValueError:
+            # If prompt_toolkit hates the color Rich liked,
+            # we fall back to an empty style so the app doesn't die.
+            return Style.from_dict({})
 
     def read_image(self, filename):
         try:
@@ -455,7 +485,7 @@ class InputOutput:
             return self.read_image(filename)
 
         try:
-            with open(str(filename), "r", encoding=self.encoding) as f:
+            with open(str(filename), "r", encoding=self.encoding, errors="replace") as f:
                 return f.read()
         except FileNotFoundError:
             if not silent:
