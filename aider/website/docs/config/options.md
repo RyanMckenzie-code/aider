@@ -74,8 +74,9 @@ usage: aider [-h] [--model] [--openai-api-key] [--anthropic-api-key]
              [--install-main-branch] [--upgrade] [--version]
              [--message] [--message-file]
              [--gui | --no-gui | --browser | --no-browser]
-             [--copy-paste | --no-copy-paste] [--apply]
-             [--apply-clipboard-edits] [--exit] [--show-repo-map]
+             [--copy-paste | --no-copy-paste]
+             [--supervised-mode | --no-supervised-mode | --supervise | --no-supervise]
+             [--apply] [--apply-clipboard-edits] [--exit] [--show-repo-map]
              [--show-prompts] [--voice-format] [--voice-language]
              [--voice-input-device] [--disable-playwright] [--file]
              [--read] [--vim] [--chat-language] [--commit-language]
@@ -638,6 +639,16 @@ Environment variable: `AIDER_COPY_PASTE`
 Aliases:
   - `--copy-paste`
   - `--no-copy-paste`
+
+### `--supervised-mode`
+Require approval for each proposed edit before applying it (default: False)
+Default: False
+Environment variable: `AIDER_SUPERVISED_MODE`
+Aliases:
+  - `--supervised-mode`
+  - `--no-supervised-mode`
+  - `--supervise`
+  - `--no-supervise`
 
 ### `--apply FILE`
 Apply the changes from the given file instead of running the chat (debug)  

@@ -269,10 +269,14 @@ def get_parser(default_config_files, git_root):
     ##########
     group = parser.add_argument_group("History Files")
     default_input_history_file = (
-        os.path.join(git_root, ".aider.input.history") if git_root else ".aider.input.history"
+        os.path.join(git_root, ".aider.input.history")
+        if git_root
+        else ".aider.input.history"
     )
     default_chat_history_file = (
-        os.path.join(git_root, ".aider.chat.history.md") if git_root else ".aider.chat.history.md"
+        os.path.join(git_root, ".aider.chat.history.md")
+        if git_root
+        else ".aider.chat.history.md"
     )
     group.add_argument(
         "--input-history-file",
@@ -398,7 +402,6 @@ def get_parser(default_config_files, git_root):
         help="Show diffs when committing changes (default: False)",
         default=False,
     )
-
     ##########
     group = parser.add_argument_group("Git settings")
     group.add_argument(
@@ -667,6 +670,15 @@ def get_parser(default_config_files, git_root):
         help="Enable automatic copy/paste of chat between aider and web UI (default: False)",
     )
     group.add_argument(
+        "--supervised-mode",
+        "--supervise",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Require approval for each proposed edit before applying it (default: False)"
+        ),
+    )
+    group.add_argument(
         "--apply",
         metavar="FILE",
         help="Apply the changes from the given file instead of running the chat (debug)",
@@ -925,15 +937,23 @@ def main():
             shell = sys.argv[2]
             if shell not in shtab.SUPPORTED_SHELLS:
                 print(f"Error: Unsupported shell '{shell}'.", file=sys.stderr)
-                print(f"Supported shells are: {', '.join(shtab.SUPPORTED_SHELLS)}", file=sys.stderr)
+                print(
+                    f"Supported shells are: {', '.join(shtab.SUPPORTED_SHELLS)}",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
             parser = get_parser([], None)
             parser.prog = "aider"  # Set the program name on the parser
             print(shtab.complete(parser, shell=shell))
         else:
             print("Error: Please specify a shell for completion.", file=sys.stderr)
-            print(f"Usage: python {sys.argv[0]} completion <shell_name>", file=sys.stderr)
-            print(f"Supported shells are: {', '.join(shtab.SUPPORTED_SHELLS)}", file=sys.stderr)
+            print(
+                f"Usage: python {sys.argv[0]} completion <shell_name>", file=sys.stderr
+            )
+            print(
+                f"Supported shells are: {', '.join(shtab.SUPPORTED_SHELLS)}",
+                file=sys.stderr,
+            )
             sys.exit(1)
     else:
         # Default to YAML for any other unrecognized argument, or if 'yaml' was explicitly passed
