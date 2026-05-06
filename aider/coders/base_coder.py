@@ -2471,16 +2471,20 @@ class Coder:
                 continue
 
             path, original, updated = edit[:3]
-            diff = difflib.unified_diff(
-                original.splitlines(keepends=True),
-                updated.splitlines(keepends=True),
-                fromfile=f"a/{path}",
-                tofile=f"b/{path}",
-                lineterm="",
-            )
-            show_diff = "".join(diff)
-            if not show_diff:
+            original_text, updated_text = self.get_supervised_diff_text(path, original, updated)
+            if original_text is None or updated_text is None:
                 show_diff = "(No textual diff available for this change.)"
+            else:
+                diff = difflib.unified_diff(
+                    original_text.splitlines(keepends=True),
+                    updated_text.splitlines(keepends=True),
+                    fromfile=f"a/{path}",
+                    tofile=f"b/{path}",
+                    lineterm="",
+                )
+                show_diff = "".join(diff)
+                if not show_diff:
+                    show_diff = "(No textual diff available for this change.)"
             self.io.tool_output(f"Proposed change for {path}:")
             self.io.tool_output(f"```diff\n{show_diff}\n```")
 
@@ -2490,6 +2494,28 @@ class Coder:
                 self.io.tool_output(f"Skipped proposed change for {path}.")
 
         return approved
+
+    def get_supervised_diff_text(self, path, original, updated):
+        updated_text = self.edit_part_to_text(updated)
+        original_text = self.edit_part_to_text(original)
+
+        # Whole-file edits use the second tuple item for filename provenance
+        # ("block", "saw" or "chat") and the third item for the proposed
+        # file content. In that case, diff against the current on-disk file.
+        if isinstance(updated, list) or original in ("block", "saw", "chat"):
+            original_text = self.io.read_text(self.abs_root_path(path)) or ""
+
+        return original_text, updated_text
+
+    @staticmethod
+    def edit_part_to_text(part):
+        if isinstance(part, str):
+            return part
+        if isinstance(part, (list, tuple)):
+            return "".join(str(item) for item in part)
+        if part is None:
+            return ""
+        return None
 
     def parse_partial_args(self):
         # dump(self.partial_response_function_call)
